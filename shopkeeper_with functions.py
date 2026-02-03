@@ -1,5 +1,5 @@
 
-# Shopkeeper-Customer Module (Refactored)
+# Shopkeeper-Customer Module
 
 # Inventory stored as dictionary
 inventory = {
@@ -270,6 +270,7 @@ def main():
 # ---------------- Run Program ---------------- #
 #if __name__ == "__main__":
 main()
+
 
 
 
