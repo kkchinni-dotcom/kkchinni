@@ -29,11 +29,12 @@ def add_or_update_vegetable():
 
     while True:
         v = input("Enter vegetable name: ").strip().lower()
-        if not validate_veg_name(v):
-            print("Invalid name. Only alphabets, spaces, and hyphens allowed.")
+        # Reject empty string or names with spaces
+        if not v or " " in v or not validate_veg_name(v):
+            print("Invalid name. Only alphabets and hyphens allowed, no spaces.")
             continue
 
-        cursor.execute("SELECT veg_id, quantity, cost_price, sell_price FROM vegetables WHERE name=%s", (v,))
+        cursor.execute("SELECT veg_id, quantity, cost_price, sell_price FROM Vegetables WHERE name=%s", (v,))
         row = cursor.fetchone()
 
         if row:
@@ -42,26 +43,60 @@ def add_or_update_vegetable():
             if update_choice == "yes":
                 action = input("Update 'quantity', 'price', or 'both': ").lower()
                 if action in ["quantity", "both"]:
-                    add_qty = float(input("Enter quantity to add: "))
+                    while True:
+                        qty_input = input("Enter quantity to add: ").strip()
+                        if qty_input.replace('.', '', 1).isdigit():
+                            add_qty = float(qty_input)
+                            break
+                        else:
+                            print("Enter valid quantity (numeric only).")
                     cursor.execute("UPDATE Vegetables SET quantity = quantity + %s WHERE veg_id=%s", (add_qty, row[0]))
                 if action in ["price", "both"]:
-                    cp = float(input("Enter new cost price: "))
                     while True:
-                        sp = float(input("Enter new selling price: "))
-                        if sp > cp:
+                        cp_input = input("Enter new cost price: ").strip()
+                        if cp_input.replace('.', '', 1).isdigit():
+                            cp = float(cp_input)
                             break
-                        print("Selling price must be greater than cost price.")
+                        else:
+                            print("Enter valid cost price (numeric only).")
+                    while True:
+                        sp_input = input("Enter new selling price: ").strip()
+                        if sp_input.replace('.', '', 1).isdigit():
+                            sp = float(sp_input)
+                            if sp > cp:
+                                break
+                            else:
+                                print("Selling price must be greater than cost price.")
+                        else:
+                            print("Enter valid selling price (numeric only).")
                     cursor.execute("UPDATE Vegetables SET cost_price=%s, sell_price=%s WHERE veg_id=%s", (cp, sp, row[0]))
                 conn.commit()
                 print("Vegetable updated successfully.")
         else:
-            q = float(input("Enter quantity: "))
-            cp = float(input("Enter cost price: "))
             while True:
-                sp = float(input("Enter selling price: "))
-                if sp > cp:
+                qty_input = input("Enter quantity: ").strip()
+                if qty_input.replace('.', '', 1).isdigit():
+                    q = float(qty_input)
                     break
-                print("Selling price must be greater than cost price.")
+                else:
+                    print("Enter valid quantity (numeric only).")
+            while True:
+                cp_input = input("Enter cost price: ").strip()
+                if cp_input.replace('.', '', 1).isdigit():
+                    cp = float(cp_input)
+                    break
+                else:
+                    print("Enter valid cost price (numeric only).")
+            while True:
+                sp_input = input("Enter selling price: ").strip()
+                if sp_input.replace('.', '', 1).isdigit():
+                    sp = float(sp_input)
+                    if sp > cp:
+                        break
+                    else:
+                        print("Selling price must be greater than cost price.")
+                else:
+                    print("Enter valid selling price (numeric only).")
             cursor.execute("INSERT INTO Vegetables (name, quantity, cost_price, sell_price) VALUES (%s,%s,%s,%s)", (v, q, cp, sp))
             conn.commit()
             print("Vegetable added successfully.")
@@ -73,6 +108,44 @@ def add_or_update_vegetable():
     cursor.close()
     conn.close()
 
+
+def remove_vegetable():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    while True:
+        # Show current inventory before removal
+        cursor.execute("SELECT veg_id, name, quantity, cost_price, sell_price FROM Vegetables")
+        rows = cursor.fetchall()
+        print("\n--- Current Inventory ---")
+        for veg_id, name, qty, cost, sell in rows:
+            print(f"ID: {veg_id} | Name: {name.title()} | Qty: {qty} | Cost: {cost} | Sell: {sell}")
+
+        v = input("Enter vegetable name to remove: ").strip().lower()
+
+        # Reject empty or space-only names
+        if not v or " " in v or not validate_veg_name(v):
+            print("Invalid name. Please enter a valid vegetable name (alphabets and hyphens only, no spaces).")
+            continue
+
+        cursor.execute("SELECT veg_id FROM Vegetables WHERE name=%s", (v,))
+        row = cursor.fetchone()
+
+        if row:
+            cursor.execute("DELETE FROM Vegetables WHERE veg_id=%s", (row[0],))
+            conn.commit()
+            print(f"{v.title()} removed successfully.")
+        else:
+            print("Vegetable not found in inventory.")
+
+        repeat = yes_no_input("Do you want to remove another vegetable? (yes/no): ")
+        if repeat != "yes":
+            break
+
+    cursor.close()
+    conn.close()
+
+    
 def print_inventory():
     conn = get_connection()
     cursor = conn.cursor()
@@ -118,6 +191,50 @@ def view_customers():
     cursor.close()
     conn.close()
 
+def remove_customer():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    while True:
+        # Show current customers before removal
+        cursor.execute("SELECT customer_id, name, phone FROM Customers")
+        rows = cursor.fetchall()
+        print("\n--- Current Customers ---")
+        for cid, name, phone in rows:
+            print(f"ID: {cid} | Name: {name.title()} | Phone: {phone}")
+
+        cname = input("Enter customer name to remove: ").strip().lower()
+
+        # Reject empty or space-only names
+        if not cname or " " in cname or not validate_veg_name(cname):
+            print("Invalid name. Please enter a valid customer name (alphabets and hyphens only, no spaces).")
+            continue
+
+        cursor.execute("SELECT customer_id FROM Customers WHERE name=%s", (cname,))
+        row = cursor.fetchone()
+
+        if row:
+            customer_id = row[0]
+
+            # Safety check: does this customer have transactions?
+            cursor.execute("SELECT COUNT(*) FROM Transactions WHERE customer_id=%s", (customer_id,))
+            txn_count = cursor.fetchone()[0]
+
+            if txn_count > 0:
+                print(f"Cannot remove '{cname.title()}'. This customer has {txn_count} transaction(s) recorded.")
+            else:
+                cursor.execute("DELETE FROM Customers WHERE customer_id=%s", (customer_id,))
+                conn.commit()
+                print(f"Customer '{cname.title()}' removed successfully.")
+        else:
+            print("Customer not found in records.")
+
+        repeat = yes_no_input("Do you want to remove another customer? (yes/no): ")
+        if repeat != "yes":
+            break
+
+    cursor.close()
+    conn.close()
 
 
 def revenue_report():
@@ -161,6 +278,8 @@ def revenue_report():
     conn.close()
 
 # ---------------- Customer Functions ---------------- #
+from decimal import Decimal
+
 def customer_menu():
     conn = get_connection()
     cursor = conn.cursor()
@@ -180,9 +299,21 @@ def customer_menu():
             cursor.execute("SELECT veg_id, quantity, cost_price, sell_price FROM Vegetables WHERE name=%s", (v,))
             row = cursor.fetchone()
             if row:
-                qty = float(input("Enter quantity: "))
-                if qty <= row[1]:
-                    cart.append([row[0], v, qty, row[2], row[3]])
+                # Validate quantity input
+                while True:
+                    qty_input = input("Enter quantity: ").strip()
+                    if qty_input.replace('.', '', 1).isdigit():
+                        qty = Decimal(qty_input)
+                        break
+                    else:
+                        print("Enter valid quantity (numeric only).")
+
+                available_qty = Decimal(str(row[1]))
+                cost = Decimal(str(row[2]))
+                sell = Decimal(str(row[3]))
+
+                if qty <= available_qty:
+                    cart.append([row[0], v, qty, cost, sell])
                     print("Item added to cart.")
                 else:
                     print("Insufficient stock.")
@@ -195,7 +326,8 @@ def customer_menu():
             else:
                 print("\n--- Cart Items ---")
                 for _, name, qty, cost, sell in cart:
-                    print(f"{name.title()} | Qty: {qty} | Price: {sell} | Total: {qty * sell}")
+                    total = qty * sell
+                    print(f"{name.title()} | Qty: {qty} | Price: {sell} | Total: {total}")
 
         elif choice == "3":
             if not cart:
@@ -211,8 +343,8 @@ def customer_menu():
                 row = cursor.fetchone()
             customer_id = row[0]
 
-            grand_total = 0
-            cart_profit = 0
+            grand_total = Decimal("0.00")
+            cart_profit = Decimal("0.00")
             print("\n--- Final Bill ---")
             for veg_id, name, qty, cost, sell in cart:
                 total = qty * sell
@@ -248,6 +380,8 @@ def customer_menu():
     cursor.close()
     conn.close()
 
+
+
 # ---------------- Main Program ---------------- #
 def main():
     while True:
@@ -267,24 +401,30 @@ def main():
             while True:
                 print("\nShopkeeper Menu")
                 print("1. Add/Update vegetable")
-                print("2. View inventory")
-                print("3. Add customer")
-                print("4. View customers")
-                print("5. Revenue report")
-                print("6. Exit to main menu")
+                print("2. Remove vegetable")
+                print("3. View inventory")
+                print("4. Add customer")
+                print("5. View customers")
+                print("6. remove customer")
+                print("7. Revenue report")
+                print("8. Exit to main menu")
                 s_choice = input("Enter choice: ")
 
                 if s_choice == "1":
                     add_or_update_vegetable()
                 elif s_choice == "2":
-                    print_inventory()
+                    remove_vegetable()
                 elif s_choice == "3":
-                    add_customer()
+                    print_inventory()
                 elif s_choice == "4":
-                    view_customers()                    
+                    add_customer()
                 elif s_choice == "5":
-                    revenue_report()
+                    view_customers()
                 elif s_choice == "6":
+                    remove_customer()
+                elif s_choice == "7":
+                    revenue_report()
+                elif s_choice == "8":
                     break
                 else:
                     print("Invalid choice. Try again.")
